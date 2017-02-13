@@ -1,0 +1,73 @@
+\documentclass[11pt]{article}
+\usepackage[fleqn]{amsmath}
+\usepackage{amssymb}
+\usepackage{mathrsfs}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{relsize}
+\usepackage{listings}
+\usepackage{tikz}
+%\usepackage{breqn}
+\lstset{language=Python,
+    frame=single,
+    breaklines=true,
+    postbreak=\raisebox{0ex}[0ex][0ex]{\ensuremath{\color{red}\hookrightarrow\space}}
+}
+%%\usepackage[margin=2cm]{geometry}
+%%\floatstyle{boxed}
+\restylefloat{figure}
+\newcommand{\Prop}{\textbf{Proposition: }}
+\newcommand{\Prob}{\textbf{Problem: }}
+\newcommand{\Prf}{\textbf{Proof: }}
+\newcommand{\Sol}{\textbf{Solution: }}
+\newcommand{\Nats}{\mathbb{N}}
+\newcommand{\Ints}{\mathbb{Z}}
+\newcommand{\Rats}{\mathbb{Q}}
+\newcommand{\Reals}{\mathbb{R}}
+\newcommand{\Comps}{\mathbb{C}}
+\newcommand{\Prb}[1]{P\left( #1 \right)}
+\newcommand{\PT}[1]{P\left( \text{#1} \right)}
+\newcommand{\PCon}[2]{P\left( #1 \mid #2 \right)}
+\newcommand{\PConT}[2]{P\left( \text{#1} \mid \text{#2} \right)}
+\DeclareMathOperator{\E}{\mathbb{E}}
+\DeclareMathOperator{\tr}{\textbf{tr}}
+\DeclareMathOperator*{\argmin}{argmin}
+\DeclareMathOperator*{\argmax}{argmax}
+\newcommand{\thus}{\quad\mathlarger{\mathlarger{\mathlarger{\Rightarrow}}}\quad} 
+\usepackage[left=2cm,right=2cm,top=2cm,bottom=2cm,nohead]{geometry}
+%%\newcommand\scalemath[2]{\scalebox{#1}{\mbox{\ensuremath{\displaystyle #2}}}}
+\setlength\parindent{0pt}
+\parskip = \baselineskip
+\begin{document} 
+\setcounter{secnumdepth}{1}
+\title{224n Project Proposal }
+\author{Andrew Lampinen}
+\date{}
+\maketitle
+
+\section{Mentor}
+Arun Chaganty
+\section{Background (Related Work)}
+Recent work has shown the power of combining neural networks and reinforcement learning, as with the Deep Q-Network \cite{Mnih2015}. Yet there are important differences between the way that humans and the DQN learn \cite{Lake2016}. We hypothesize that many of these may be explained by the richness of human experience -- when humans are learning to play a game, they bring experience from previous games they have played, and they often receive explicit instruction as well as more implicit learning. There have been a number of studies recently showing the benefit of multi-task training, e.g. \cite{Luong2016}. 
+
+\section{Problem}
+We propose to explore a simple version of incorporating explicit instruction into reinforcement learning. We propose to train a network to play tic-tac-toe using Q-learning, in the style of \cite{Mnih2015}, while simultaneously asking the network to produce descriptions through a parallel sequence + visual input to sequence learning task, where the encoder and decoder are separated by a hidden layer of the DQN, which processes the visual input (see fig. \ref{network_diagram} for a sketch of the architecture).  
+\begin{figure}
+\centering
+\includegraphics[width=0.5\textwidth]{ttt_tasks.png}
+\caption{Sketch of our proposed network architecture}
+\label{network_diagram}
+\end{figure}
+
+\section{Data}
+Because game playing involves interactions between two opponents, data generation will be more complicated than on some other tasks. Fortunately, tic-tac-toe is simple, and both the plays and the descriptions can be generated on the fly. The simplest implementation would have descriptions in the form of questions and answers like "What's in the third row?" "My piece, empty square, opponents piece." If we have additional time, we may try to add more sophisticated discussion (e.g. questions about threats, tactics, etc.). 
+
+\section{Methodology}
+We will train the network by playing it against several opponents (an optimal opponent, a random opponent, and potentially the network itself), and using a standard Q-learning procedure for the Q-net, while training the network to answer a question (randomly chosen from the questions above) on each move.
+
+\section{Evaluation Plan}
+We will evaluate the network on its ability to play against both an optimal opponent and an opponent that plays randomly, and compare its performance to that of a simple Q-network without the language component.
+
+\bibliographystyle{acm}
+\bibliography{224n_project}
+\end{document}
