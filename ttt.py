@@ -4,7 +4,7 @@ import numpy
 ####Testing parameters###############
 learning_rates = [0.01]
 learning_rate_decays = [0.8]
-pretraining_conditions = [True,False]
+#pretraining_conditions = [True,False] #not yet implemented
 num_runs_per = 20
 
 #####data parameters###########################
@@ -18,15 +18,12 @@ nhidden = 100
 nhiddendescriptor = 50
 
 vocab = ["first","second","third","row","column","diagonal","my","opponent's","piece","empty","square","what's","in","END","PAD","GO"]
+control_vocab = ["how","many","are","there","zero","one","two","three","four","five","six","seven","eight","nine","END","PAD","GO"]
 sentence_length = 10 #All sentences will be padded to this length.
 embedding_size = 20 
 discount_factor = 1.0 #for Q-learning
 epsilon = 0.2 #epsilon greedy
-eta = 0.005
-#description_eta = 0.0001 #NOTE:Using replay buffer forces description_eta = eta whenever training on games with descriptions (because gradients are combined from both sources)
-#eta_decay = 0.8 #Multiplicative decay per epoch
 description_eta_decay = 0.7 #Multiplicative decay per epoch
-description_pretraining_epochs = 20
 nepochs = 20
 games_per_epoch = 50
 
@@ -50,13 +47,14 @@ def words_to_onehot(word_list):
 ######Question setup##########################
 what_questions = [["what's","in",x,y,"END","PAD","PAD","PAD","PAD","PAD"] for x in ["first","second","third"] for y in ["row","column"]] +  [["what's","in",x,"diagonal","END","PAD","PAD","PAD","PAD","PAD"] for x in ["first","second"]] 
 questions = what_questions #can expand later
-
 num_questions = len(questions)
 
 def pad_to_length(sentence,n):
     if len(sentence) > n:
 	raise ValueError("The sentence provided is longer than the padding length")
     return sentence + ["PAD"]*(n-len(sentence))
+
+control_questions = [pad_to_length(["how","many","are","there","END"])]
 
 ###############################################
 
@@ -119,6 +117,18 @@ def get_description_target(state,question): #helper, generates description targe
 			answer.extend(["opponent's","piece"])
 		    else:
 			answer.extend(["empty","square"])
+    else:
+	answer = ["I","don't","know"]
+    answer.append("END")
+    
+    return pad_to_length(answer,sentence_length)
+
+def get_control_description_target(state,question): #helper, generates description target utterance for a given state and question
+    answer = []
+    #"What" questions
+    if question[:4] == ["how","many","are","there"]:
+	count = (["zero","one","two","three","four","five","six","seven","eight","nine"])[numpy.sum(numpy.abs(state))]	
+	answer = ["there","are",count]
     else:
 	answer = ["I","don't","know"]
     answer.append("END")
@@ -387,8 +397,10 @@ class Q_approx(object):
 	return  (float(wins)/numgames,float(draws)/numgames,float(losses)/numgames) 
 
 class Q_approx_and_descriptor(Q_approx):
-    def __init__(self):
+    def __init__(self,questions,description_target_generator):
 	super(Q_approx_and_descriptor,self).__init__()
+	self.questions = questions
+	self.get_description_target = description_target_generator
 	
 	self.description_targets_ph = tf.placeholder(tf.int32, shape=[sentence_length,vocab_size])
 	self.description_inputs_ph = tf.placeholder(tf.int32, shape=[sentence_length,1])
@@ -420,7 +432,7 @@ class Q_approx_and_descriptor(Q_approx):
     def describe_state(self,state):
 	"""Prints questions and the network's answers for the given state"""
 	print state
-	for question in questions:
+	for question in self.questions:
 	    print "Q: "
 	    print question
 	    print "A: "
@@ -428,16 +440,15 @@ class Q_approx_and_descriptor(Q_approx):
 	    print "Desired:"
 	    print get_description_target(state,question)
 	    print
-	    
 	
     def train_description(self,state,nquestions=1):
 	"""Trains descriptions by asking nquestions random questions to the network and training correct response"""
 	for i in xrange(nquestions):
-	    question = questions[numpy.random.randint(num_questions)]
-	    self.sess.run(self.descr_train,feed_dict={self.input_ph: state.reshape((9,1)),self.description_inputs_ph: words_to_indices(question).reshape(-1,1),self.description_targets_ph: words_to_onehot(get_description_target(state,question)),self.keep_prob: 0.5,self.eta: self.curr_eta})
-
+	    question = self.questions[numpy.random.randint(num_questions)]
+	    self.sess.run(self.descr_train,feed_dict={self.input_ph: state.reshape((9,1)),self.description_inputs_ph: words_to_indices(question).reshape(-1,1),self.description_targets_ph: words_to_onehot(self.get_description_target(state,question)),self.keep_prob: 0.5,self.eta: self.curr_eta})
 
     def play_game_train_descriptions(self,opponent,display=False,ask_every=1,questions_per_ask=1):
+	ask_offset = numpy.random.randint(0,ask_every) #So we don't only learn to describe states that occur at a certain step
 	gofirst = numpy.random.randint(0,2)
 	state = numpy.zeros((3,3))
 	i = 0
@@ -448,7 +459,7 @@ class Q_approx_and_descriptor(Q_approx):
 		state = opponent(state)
 	    else: 
 		state = self.Q_move(state,train=True)  
-	    if i % questions_per_ask == 0:
+	    if i % questions_per_ask == ask_offset:
 		self.train_description(state,nquestions=questions_per_ask)
 	    i += 1
 	    if display:
@@ -468,6 +479,60 @@ class Q_approx_and_descriptor(Q_approx):
 	    score += self.play_game_train_descriptions(opponents[game % num_opponents],ask_every=ask_every,questions_per_ask=questions_per_ask)
 	return  (float(score)/numgames) 
 
+    def test_descriptions(self,state):
+	loss = 0.
+	for question in self.questions:
+	    loss += self.sess.run(self.descr_loss,feed_dict={self.input_ph: state.reshape((9,1)),self.description_inputs_ph: words_to_indices(question).reshape(-1,1),self.description_targets_ph: words_to_onehot(self.get_description_target(state,question)),self.keep_prob: 1.0,self.eta: self.curr_eta})
+
+    def play_game(self,opponent,train=False,display=False,test_descriptions=False):
+	gofirst = numpy.random.randint(0,2)
+	state = numpy.zeros((3,3))
+	i = 0
+	descr_loss = 0.
+	if display:
+	    print "starting game..."
+	while not (catsgame(state) or threeinrow(state) or threeinrow(-state)):
+	    if i % 2 == gofirst:
+		state = opponent(state)
+	    else: 
+		state = self.Q_move(state,train=train)  
+	    i += 1
+	    if display:
+		print state
+		print
+	    if test_descriptions:
+
+		for question in self.questions:
+		    descr_loss += self.sess.run(self.descr_loss,feed_dict={self.input_ph: state.reshape((9,1)),self.description_inputs_ph: words_to_indices(question).reshape(-1,1),self.description_targets_ph: words_to_onehot(self.get_description_target(state,question)),self.keep_prob: 1.0,self.eta: self.curr_eta})
+		
+		
+	reward = 0
+	if threeinrow(state):
+	    reward = 1
+	elif threeinrow(-state) or unblockedopptwo(state):
+	    reward = -1
+	
+	if test_descriptions:
+	    return reward,descr_loss/(i+1)
+	else:
+	    return reward
+
+    def test_on_games_with_descriptions(self,opponent,numgames=1000,ask_every=1,questions_per_ask=1):
+	wins = 0
+	draws = 0
+	losses = 0
+	descr_loss = 0.
+	for game in xrange(numgames):
+	    this_score,this_descr_loss = self.play_game(opponent,train=False,test_descriptions=True)
+	    if this_score == 1:
+		wins += 1
+	    elif this_score == -1:
+		losses += 1
+	    else:
+		draws += 1 
+	    descr_loss += this_descr_loss
+	    
+	return  (float(wins)/numgames,float(draws)/numgames,float(losses)/numgames,float(descr_loss)) 
 ########################################
 
 
@@ -479,12 +544,48 @@ class Q_approx_and_descriptor(Q_approx):
 ##########Running#################
 
 
-descr_net = Q_approx_and_descriptor()
-descr_net.init_all()
-test_state = numpy.array([[-1,0,1],[0,-1,0],[0,0,-1]])
-descr_net.describe_state(test_state)
-descr_net.train_on_games_with_descriptions([random_opponent],numgames=1000)
-descr_net.describe_state(test_state)
+#descr_net = Q_approx_and_descriptor()
+#descr_net.init_all()
+#test_state = numpy.array([[-1,0,1],[0,-1,0],[0,0,-1]])
+#descr_net.describe_state(test_state)
+#descr_net.train_on_games_with_descriptions([random_opponent],numgames=1000)
+#descr_net.describe_state(test_state)
 
+
+for learning_rate in learning_rates:
+    for lr_decay in learning_rate_decays:
+#	for pretrain in pretraining_conditions:
+	    for rseed in xrange(num_runs_per):
+		basic_track = []
+		descr_track = []
+		control_track = []
+		
+		for currently_training in ["descr","basic","control"]:
+		    numpy.random.seed(rseed)
+		    tf.set_random_seed(rseed)	
+
+		    if currently_training == "descr":
+			net = Q_approx_and_descriptor(questions,get_description_target)
+			net.init_all()
+		    elif currently_training == "control":
+			net = Q_approx_and_descriptor(control_questions,get_control_description_target)
+			net.init_all()
+		    elif currently_training == "basic":
+			net = Q_approx()
+			net.init_all()
+
+		   
+		    # pre-test
+
+    
+
+		    # train
+
+
+
+		    # post-test 
+
+	
+		# output
 
 
