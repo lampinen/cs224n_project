@@ -2,10 +2,11 @@ import tensorflow as tf
 import numpy
 
 ####Testing parameters###############
-learning_rates = [0.01]
-learning_rate_decays = [1.0] #not yet implemented
-pretraining_conditions = [True,False]
-num_runs_per = 20
+learning_rates = [0.01,0.005,0.02]
+learning_rate_decays = [1.0] #may not be necessary/not yet implemented
+pretraining_conditions = [False]
+description_etas = [0.001,0.0001,0.01]
+num_runs_per = 30
 
 #####data parameters###########################
 n = 3 #size of board
@@ -15,7 +16,7 @@ k = 3 #number in row to win,
 
 #####network/learning parameters###############
 nhidden = 100
-nhiddendescriptor = 50
+nhiddendescriptor = 100
 
 vocab = ["first","second","third","row","column","diagonal","my","opponent's","piece","empty","square","what's","in","END","PAD","GO"]
 control_vocab = ["how","many","are","there","zero","one","two","three","four","five","six","seven","eight","nine","END","PAD","GO"]
@@ -25,7 +26,7 @@ discount_factor = 1.0 #for Q-learning
 epsilon = 0.1 #epsilon greedy
 nepochs = 20
 games_per_epoch = 20
-description_pretraining_states = 1000
+description_pretraining_states = 20000
 
 
 ######Vocab setup##############################
@@ -406,11 +407,13 @@ class Q_approx_and_descriptor(Q_approx):
 	self.vocab_size = len(vocab) 
 	self.questions = questions
 	self.get_description_target = description_target_generator
+	self.curr_description_eta = 1.0
 	
 	self.description_targets_ph = tf.placeholder(tf.int32, shape=[sentence_length,self.vocab_size])
 	self.description_inputs_ph = tf.placeholder(tf.int32, shape=[sentence_length,1])
+	self.description_inputs_reversed = tf.reverse(self.description_inputs_ph,[True,False]) #Reversing input may help
 	self.word_embeddings = embeddings = tf.Variable(tf.random_uniform([self.vocab_size,embedding_size],-1,1))
-	self.description_inputs = tf.nn.embedding_lookup(self.word_embeddings,self.description_inputs_ph) 
+	self.description_inputs = tf.nn.embedding_lookup(self.word_embeddings,self.description_inputs_reversed) 
 	__,self.encoded_descr_input = tf.nn.dynamic_rnn(tf.nn.rnn_cell.BasicRNNCell(nhiddendescriptor),self.description_inputs,dtype=tf.float32,time_major=True)
 	self.W3d = tf.Variable(tf.random_normal([nhiddendescriptor,nhidden+nhiddendescriptor],0,0.1))
 	self.b3d = tf.Variable(tf.random_normal([nhiddendescriptor,1],0,0.1))
@@ -432,7 +435,9 @@ class Q_approx_and_descriptor(Q_approx):
 	
 	self.output_logits = [tf.matmul(self.word_embeddings,output) for output in outputs]	
 	self.descr_loss = tf.reduce_sum(tf.nn.softmax_cross_entropy_with_logits(tf.transpose(tf.concat(1,self.output_logits)),self.description_targets_ph)) 
-	self.descr_train = self.optimizer.minimize(self.descr_loss) 	
+
+	self.descr_optimizer = tf.train.AdamOptimizer(self.eta)
+	self.descr_train = self.descr_optimizer.minimize(self.descr_loss) 	
 
     def describe_state(self,state):
 	"""Prints questions and the network's answers for the given state"""
@@ -451,7 +456,7 @@ class Q_approx_and_descriptor(Q_approx):
 	num_total_questions = len(self.questions) 
 	for i in xrange(nquestions):
 	    question = self.questions[numpy.random.randint(num_total_questions)]
-	    self.sess.run(self.descr_train,feed_dict={self.input_ph: state.reshape((9,1)),self.description_inputs_ph: words_to_indices(question,self.vocab_dict).reshape(-1,1),self.description_targets_ph: words_to_onehot(self.get_description_target(state,question),self.vocab_dict,self.vocab_size),self.keep_prob: 0.5,self.eta: self.curr_eta})
+	    self.sess.run(self.descr_train,feed_dict={self.input_ph: state.reshape((9,1)),self.description_inputs_ph: words_to_indices(question,self.vocab_dict).reshape(-1,1),self.description_targets_ph: words_to_onehot(self.get_description_target(state,question),self.vocab_dict,self.vocab_size),self.keep_prob: 0.5,self.eta: self.curr_description_eta})
 
     def play_game_train_descriptions(self,opponent,display=False,ask_every=1,questions_per_ask=1):
 	ask_offset = numpy.random.randint(0,ask_every) #So we don't only learn to describe states that occur at a certain step
@@ -488,7 +493,7 @@ class Q_approx_and_descriptor(Q_approx):
     def test_descriptions(self,state):
 	loss = 0.
 	for question in self.questions:
-	    loss += self.sess.run(self.descr_loss,feed_dict={self.input_ph: state.reshape((9,1)),self.description_inputs_ph: words_to_indices(question,self.vocab_dict).reshape(-1,1),self.description_targets_ph: words_to_onehot(self.get_description_target(state,question),self.vocab_dict,self.vocab_size),self.keep_prob: 1.0,self.eta: self.curr_eta})
+	    loss += self.sess.run(self.descr_loss,feed_dict={self.input_ph: state.reshape((9,1)),self.description_inputs_ph: words_to_indices(question,self.vocab_dict).reshape(-1,1),self.description_targets_ph: words_to_onehot(self.get_description_target(state,question),self.vocab_dict,self.vocab_size),self.keep_prob: 1.0})
 
     def play_game(self,opponent,train=False,display=False,test_descriptions=False):
 	gofirst = numpy.random.randint(0,2)
@@ -509,7 +514,7 @@ class Q_approx_and_descriptor(Q_approx):
 	    if test_descriptions:
 
 		for question in self.questions:
-		    descr_loss += self.sess.run(self.descr_loss,feed_dict={self.input_ph: state.reshape((9,1)),self.description_inputs_ph: words_to_indices(question,self.vocab_dict).reshape(-1,1),self.description_targets_ph: words_to_onehot(self.get_description_target(state,question),self.vocab_dict,self.vocab_size),self.keep_prob: 1.0,self.eta: self.curr_eta})
+		    descr_loss += self.sess.run(self.descr_loss,feed_dict={self.input_ph: state.reshape((9,1)),self.description_inputs_ph: words_to_indices(question,self.vocab_dict).reshape(-1,1),self.description_targets_ph: words_to_onehot(self.get_description_target(state,question),self.vocab_dict,self.vocab_size),self.keep_prob: 1.0})
 		
 		
 	reward = 0
@@ -557,88 +562,92 @@ class Q_approx_and_descriptor(Q_approx):
 #descr_net.train_on_games_with_descriptions([random_opponent],numgames=1000)
 #descr_net.describe_state(test_state)
 
-
-for learning_rate in learning_rates:
-    for lr_decay in learning_rate_decays:
-	for pretrain in pretraining_conditions:
-	    for rseed in xrange(num_runs_per):
-		basic_track = []
-		descr_track = []
-		control_track = []
-		
-		for currently_training in ["descr","control","basic"]:
-		    #init
-		    numpy.random.seed(rseed)
-		    tf.set_random_seed(rseed)	
+for description_eta in description_etas:
+    for learning_rate in learning_rates:
+	for lr_decay in learning_rate_decays:
+	    for pretrain in pretraining_conditions:
+		for run in xrange(num_runs_per):
+		    basic_track = []
+		    descr_track = []
+		    control_track = []
 		    
-		    if currently_training == "descr":
-			net = Q_approx_and_descriptor(vocab,vocab_dict,questions,get_description_target)
-		    elif currently_training == "control":
-			net = Q_approx_and_descriptor(control_vocab,control_vocab_dict,control_questions,get_control_description_target)
-		    elif currently_training == "basic":
-			net = Q_approx()
-
-		    net.curr_eta = learning_rate
-		    net.init_all()
-
-		    # pre-train
-		    if currently_training == "descr":
-			    for i in xrange(description_pretraining_states):
-				this_state = numpy.random.randint(-1,2,(3,3))	
-	
-				net.train_description(this_state,8)
-		    elif currently_training == "control":
-			    for i in xrange(description_pretraining_states):
-				this_state = numpy.random.randint(-1,2,(3,3))	
-	
-				net.train_description(this_state,8)
-		   
-		    # pre-test
-		    if currently_training == "descr":
-			descr_track.append(net.test_on_games_with_descriptions(opponent=optimal_opponent,numgames=1000,ask_every=1,questions_per_ask=1)) 
-			print "training descr, initial, results %s" %(str(descr_track[-1]))
-		    elif currently_training == "control":
-			control_track.append(net.test_on_games_with_descriptions(opponent=optimal_opponent,numgames=1000,ask_every=1,questions_per_ask=1)) 
-			print "training control, initial, results %s" %(str(control_track[-1]))
-		    elif currently_training == "basic":
-			basic_track.append(net.test_on_games(opponent=optimal_opponent,numgames=1000)) 
-			print "training basic, initial, results %s" %(str(basic_track[-1]))
-
-		    
-    
-
-		    for epoch in xrange(nepochs):
-			# train
+		    for currently_training in ["basic","descr","control"]: #,"basic"
+			#init
+			numpy.random.seed(run)
+			tf.set_random_seed(run)	
+			
 			if currently_training == "descr":
-			    net.train_on_games_with_descriptions([optimal_opponent],numgames=games_per_epoch,ask_every=1,questions_per_ask=1)
-
+			    net = Q_approx_and_descriptor(vocab,vocab_dict,questions,get_description_target)
 			elif currently_training == "control":
-			    net.train_on_games_with_descriptions([optimal_opponent],numgames=games_per_epoch,ask_every=1,questions_per_ask=1)
-
+			    net = Q_approx_and_descriptor(control_vocab,control_vocab_dict,control_questions,get_control_description_target)
 			elif currently_training == "basic":
-			    net.train_on_games([optimal_opponent],numgames=games_per_epoch)
-    
+			    net = Q_approx()
 
+			net.curr_eta = learning_rate
+			net.curr_description_eta = description_eta 
+			net.init_all()
 
-			# test 
+			# pre-train
+			if pretrain:
+			    if currently_training == "descr":
+				    for i in xrange(description_pretraining_states):
+					this_state = numpy.random.randint(-1,2,(3,3))	
+		
+					net.train_description(this_state,8)
+			    elif currently_training == "control":
+				    for i in xrange(description_pretraining_states):
+					this_state = numpy.random.randint(-1,2,(3,3))	
+		
+					net.train_description(this_state,8)
+
+		       
+			# pre-test
 			if currently_training == "descr":
 			    descr_track.append(net.test_on_games_with_descriptions(opponent=optimal_opponent,numgames=1000,ask_every=1,questions_per_ask=1)) 
-			    print "training descr, epoch %i, results %s" %(epoch,str(descr_track[-1]))
+			    print "training descr, initial, results %s" %(str(descr_track[-1]))
 			elif currently_training == "control":
 			    control_track.append(net.test_on_games_with_descriptions(opponent=optimal_opponent,numgames=1000,ask_every=1,questions_per_ask=1)) 
-			    print "training control, epoch %i, results %s" %(epoch,str(control_track[-1]))
+			    print "training control, initial, results %s" %(str(control_track[-1]))
 			elif currently_training == "basic":
 			    basic_track.append(net.test_on_games(opponent=optimal_opponent,numgames=1000)) 
-			    print "training basic, epoch %i, results %s" %(epoch,str(basic_track[-1]))
-		    #Reset
-		    net.sess.close() 
-		    tf.reset_default_graph()
+			    print "training basic, initial, results %s" %(str(basic_track[-1]))
 
-
+			
 	
-		# output
-		numpy.savetxt('descr_net_track_pretrain-%s_learning_rate-%f_lr_decay-%f_run-%i.csv'%(str(pretraining_condition),learning_rate,lr_decay,run),descr_track,delimiter=',')
-		numpy.savetxt('control_net_track_pretrain-%s_learning_rate-%f_lr_decay-%f_run-%i.csv'%(str(pretraining_condition),learning_rate,lr_decay,run),control_track,delimiter=',')
-		numpy.savetxt('basic_net_track_pretrain-%s_learning_rate-%f_lr_decay-%f_run-%i.csv'%(str(pretraining_condition),learning_rate,lr_decay,run),basic_track,delimiter=',')
+
+			for epoch in xrange(nepochs):
+			    # train
+			    if currently_training == "descr":
+				net.train_on_games_with_descriptions([optimal_opponent],numgames=games_per_epoch,ask_every=1,questions_per_ask=1)
+				net.train_on_games([optimal_opponent],numgames=games_per_epoch)
+
+			    elif currently_training == "control":
+				net.train_on_games_with_descriptions([optimal_opponent],numgames=games_per_epoch,ask_every=1,questions_per_ask=1)
+
+			    elif currently_training == "basic":
+				net.train_on_games([optimal_opponent],numgames=games_per_epoch)
+	
+
+
+			    # test 
+			    if currently_training == "descr":
+				descr_track.append(net.test_on_games_with_descriptions(opponent=optimal_opponent,numgames=1000,ask_every=1,questions_per_ask=1)) 
+				print "training descr, epoch %i, results %s" %(epoch,str(descr_track[-1]))
+			    elif currently_training == "control":
+				control_track.append(net.test_on_games_with_descriptions(opponent=optimal_opponent,numgames=1000,ask_every=1,questions_per_ask=1)) 
+				print "training control, epoch %i, results %s" %(epoch,str(control_track[-1]))
+			    elif currently_training == "basic":
+				basic_track.append(net.test_on_games(opponent=optimal_opponent,numgames=1000)) 
+				print "training basic, epoch %i, results %s" %(epoch,str(basic_track[-1]))
+			#Reset
+			net.sess.close() 
+			tf.reset_default_graph()
+
+
+	    
+		    # output
+		    numpy.savetxt('descr_net_track_pretrain-%s_learning_rate-%f_description_learning_rate-%f_lr_decay-%f_run-%i.csv'%(str(pretrain),learning_rate,description_eta,lr_decay,run),descr_track,delimiter=',')
+		    numpy.savetxt('control_net_track_pretrain-%s_learning_rate-%f_description_learning_rate-%f_lr_decay-%f_run-%i.csv'%(str(pretrain),learning_rate,description_eta,lr_decay,run),control_track,delimiter=',')
+		    numpy.savetxt('basic_net_track_pretrain-%s_learning_rate-%f_description_learning_rate-%f_lr_decay-%f_run-%i.csv'%(str(pretrain),learning_rate,description_eta,lr_decay,run),basic_track,delimiter=',')
 
 
