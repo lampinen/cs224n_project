@@ -1,12 +1,13 @@
 import tensorflow as tf
 import numpy
+import os
 
 ####Testing parameters###############
-learning_rates = [0.01,0.005,0.02]
+learning_rates = [0.001]
 learning_rate_decays = [1.0] #may not be necessary/not yet implemented
 pretraining_conditions = [False]
-description_etas = [0.001,0.0001,0.01]
-num_runs_per = 30
+description_etas = [0.001]
+num_runs_per = 20
 
 #####data parameters###########################
 n = 3 #size of board
@@ -567,6 +568,10 @@ for description_eta in description_etas:
 	for lr_decay in learning_rate_decays:
 	    for pretrain in pretraining_conditions:
 		for run in xrange(num_runs_per):
+		    if os.path.exists('descr_net_track_pretrain-%s_learning_rate-%f_description_learning_rate-%f_lr_decay-%f_run-%i.csv'%(str(pretrain),learning_rate,description_eta,lr_decay,run)):
+			print "skipping completed run" 
+			continue
+		    print "run %i" %run
 		    basic_track = []
 		    descr_track = []
 		    control_track = []

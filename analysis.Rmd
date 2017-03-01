@@ -1,0 +1,38 @@
+---
+title: "Tic-tac-toe analysis"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+```{r}
+data_path = './first_results/'
+description_learning_rate = '0.001000'
+nepochs = 20
+d = data.frame()
+for (run_i in 0:19) {
+  for (lr in c('0.010000','0.005000')) {
+    for (net in c('basic','descr','control')) {
+      if (!file.exists(sprintf('%s%s_net_track_pretrain-%s_learning_rate-%s_description_learning_rate-%s_lr_decay-1.000000_run-%i.csv',data_path,net,'False',lr,description_learning_rate,run_i))) {
+        next
+      }
+      this_d = read.csv(sprintf('%s%s_net_track_pretrain-%s_learning_rate-%s_description_learning_rate-%s_lr_decay-1.000000_run-%i.csv',data_path,net,'False',lr,description_learning_rate,run_i),header=F)
+      
+      d = rbind(d,data.frame(net=rep(net,nepochs+1),epoch=(0:nepochs),run=rep(run_i,nepochs+1),learning_rate=rep(lr,nepochs+1),description_learning_rate=rep(description_learning_rate,nepochs+1),wins=this_d$V1,draws=this_d$V2,losses=this_d$V3 ))
+    }
+  }
+}
+```
+
+```{r}
+d %>% filter(draws==1.0) %>% group_by(net,run,learning_rate,description_learning_rate) %>% summarize(success = n() > 0) %>% group_by(net,learning_rate,description_learning_rate) %>% summarize(count=n())
+```
+
+```{r}
+d %>% filter(draws==1.0) %>% group_by(net,run,learning_rate,description_learning_rate) %>% summarize(min_epoch = min(epoch)) %>% group_by(net,learning_rate,description_learning_rate) %>% summarize(mean_min_epoch =mean(min_epoch))
+```
+
