@@ -1,0 +1,78 @@
+\documentclass[11pt]{article}
+\usepackage[fleqn]{amsmath}
+\usepackage{amssymb}
+\usepackage{mathrsfs}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{relsize}
+\usepackage{listings}
+\usepackage{tikz}
+%\usepackage{breqn}
+\lstset{language=Python,
+    frame=single,
+    breaklines=true,
+    postbreak=\raisebox{0ex}[0ex][0ex]{\ensuremath{\color{red}\hookrightarrow\space}}
+}
+%%\usepackage[margin=2cm]{geometry}
+%%\floatstyle{boxed}
+\restylefloat{figure}
+\newcommand{\Prop}{\textbf{Proposition: }}
+\newcommand{\Prob}{\textbf{Problem: }}
+\newcommand{\Prf}{\textbf{Proof: }}
+\newcommand{\Sol}{\textbf{Solution: }}
+\newcommand{\Nats}{\mathbb{N}}
+\newcommand{\Ints}{\mathbb{Z}}
+\newcommand{\Rats}{\mathbb{Q}}
+\newcommand{\Reals}{\mathbb{R}}
+\newcommand{\Comps}{\mathbb{C}}
+\newcommand{\Prb}[1]{P\left( #1 \right)}
+\newcommand{\PT}[1]{P\left( \text{#1} \right)}
+\newcommand{\PCon}[2]{P\left( #1 \mid #2 \right)}
+\newcommand{\PConT}[2]{P\left( \text{#1} \mid \text{#2} \right)}
+\DeclareMathOperator{\E}{\mathbb{E}}
+\DeclareMathOperator{\tr}{\textbf{tr}}
+\DeclareMathOperator*{\argmin}{argmin}
+\DeclareMathOperator*{\argmax}{argmax}
+\newcommand{\thus}{\quad\mathlarger{\mathlarger{\mathlarger{\Rightarrow}}}\quad} 
+\usepackage[left=2cm,right=2cm,top=2cm,bottom=2cm,nohead]{geometry}
+%%\newcommand\scalemath[2]{\scalebox{#1}{\mbox{\ensuremath{\displaystyle #2}}}}
+\setlength\parindent{0pt}
+\parskip = \baselineskip
+\begin{document} 
+\setcounter{secnumdepth}{1}
+\title{224n Project}
+\author{Andrew Lampinen}
+\date{}
+\maketitle
+
+\section{Mentor}
+Arun Chaganty
+\section{Background (Related Work)}
+Recent work has shown the power of combining neural networks and reinforcement learning, as with the Deep Q-Network \cite{Mnih2015}. Yet there are important differences between the way that humans and the DQN learn \cite{Lake2016}. We hypothesize that many of these may be explained by the richness of human experience -- when humans are learning to play a game, they bring experience from previous games they have played, and they often receive explicit instruction as well as more implicit learning. There have been a number of studies recently showing the benefit of multi-task training, e.g. \cite{Luong2016}. 
+
+\section{Problem}
+We explored a simple version of incorporating explicit instruction into reinforcement learning. We trained a network to play tic-tac-toe using Q-learning, in the style of \cite{Mnih2015}, while simultaneously asking the network to produce descriptions through a parallel sequence + visual input to sequence learning task, where the description task and the Q-learning task share the two layers which process the visual input (see fig. \ref{network_diagram} for a sketch of the architecture).  
+\begin{figure}
+\centering
+\includegraphics[width=0.5\textwidth]{ttt_tasks.png}
+\caption{Sketch of our proposed network architecture}
+\label{network_diagram}
+\end{figure}
+
+\section{Data}
+Because game playing involves interactions between two opponents, data generation is more complicated than on some other tasks. Fortunately, tic-tac-toe is simple, and both the plays and the descriptions could be generated on the fly. For the purposes of this project, we implemented the simplest possible form of linguistic interaction: purely descriptive questions. For example: "What's in the third row?" "My piece, empty square, opponents piece." These questions 
+
+\section{Methodology}
+We trained the network by playing it against an optimal opponent, used a standard Q-learning procedure for the Q-net, while training the network to answer a question (randomly chosen from the questions above) on each move. 
+\subsection{Implementation details}
+All sentences (input and output) were padded to length 10, input sentences were reversed.  
+
+\subsection{Evaluation}
+We evaluated the network on whether or not it successfully achieved perfect performance (no losses) against the optimal opponent, and how many games it took to do so. We compared the performance of the network trained with descriptions to two controls: 
+\begin{enumerate}
+\item \textbf{Basic:} The Q-network without the description task. 
+\item \textbf{Control:} The Q-network with a different description task -- counting the number of pieces on the board. In this task there was only a single question (``How many are there?'') and responses were of the form (``There are five'') This active control is to test for a possible effect of just having any other task overcoming the small gradients reaching the first layer more quickly. 
+\end{enumerate}
+\bibliographystyle{acm}
+\bibliography{224n_project}
+\end{document}
