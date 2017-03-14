@@ -1,0 +1,86 @@
+\documentclass{article} % For LaTeX2e
+\usepackage{nips13submit_e,times}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{amssymb}
+\usepackage{mathrsfs}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{relsize}
+\usepackage{listings}
+\usepackage{tikz}
+
+%\documentstyle[nips13submit_09,times,art10]{article} % For LaTeX 2.09
+
+
+\title{224n Project: Natural Language Learning Supports Reinforcement Learning}
+
+
+\author{
+Andrew Lampinen \\
+Department of Psychology\\
+Stanford University\\
+Stanford, CA 94305 \\
+\texttt{lampinen@stanford.edu} \\
+}
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\nipsfinalcopy % Uncomment for camera-ready version
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+%%TODO
+\end{abstract}
+
+
+\section{Introduction}
+Neural networks are often optimized for performance on a single task. By contrast, human intelligence is fundamentally flexible, and applicable across a wide variety of tasks. It has been argued that this represents a fundamental difference in the representational structure of human intelligence and neural networks \cite{Lake2016}. However, we have argued that this difference may arise from the richness of human experience, which can be seen as a vast set of interconnected and mutually supporting tasks \cite{HansenInPress}. We argue that human-like learning can arise from neural networks if they are given human-like experience. \par
+In this paper, we address one small piece of this argument. Lake and colleagues have argued that neural networks are too data hungry to be a good model for human behavior, or to perform sophisticated intelligence tasks alone \cite{Lake2016}. There are several reasons humans require less data than a neural network:
+\begin{itemize}
+\item Humans have prior knowledge which can be useful for learning, which it has been known for some time that neural networks can model \cite[e.g.]{Dienes1999}.
+\item Humans often receive multiple forms of feedback in a single task, for example, when learning to play chess you might receive both emotional feedback (``my opponent just took my queen, UGH''), and linguistic feedback (your teacher telling you ``that type of double attack is called a fork'').
+\end{itemize} 
+In this paper we focus on this latter point. Can giving neural networks multiple sources of feedback about a task accelerate learning?\par
+In particular, we focus on the simple game-playing context of tic-tac-toe. It is simple enough to train a neural network to play tic-tac-toe using a reinforcement learning algorithm, but suppose we give it in addition some natural language information about the task. Will this be beneficial to learning? 
+%%TODO
+\section{Background/Related Work}
+Recent work has shown the power of combining neural networks and reinforcement learning, as with the Deep Q-Network \cite{Mnih2015}. Yet there are important differences between the way that humans and the DQN learn \cite{Lake2016}. We hypothesize that many of these may be explained by the richness of human experience -- when humans are learning to play a game, they bring experience from previous games they have played, and they often receive explicit instruction as well as more implicit learning. There have been a number of studies recently showing the benefit of multi-task training, \cite[e.g.]{Luong2016}.
+
+\section{Approach}
+We explored a simple version of incorporating explicit instruction into reinforcement learning. We trained a network to play tic-tac-toe using Q-learning, in the style of Mnih et al. \cite{Mnih2015}, while simultaneously asking the network to produce descriptions through a parallel sequence + visual input to sequence learning task, where the description task and the Q-learning task share the two layers which process the visual input (see fig. \ref{network_diagram} for a sketch of the architecture).  
+\begin{figure}
+\centering
+\includegraphics[width=0.5\textwidth]{ttt_tasks.png}
+\caption{Sketch of our network architecture}
+\label{network_diagram}
+\end{figure}
+
+\subsection{Data generation}
+Because game playing involves interactions between two opponents, data generation is more complicated than on some other tasks. Fortunately, tic-tac-toe is simple, and both the plays and the descriptions could be generated on the fly. For the purposes of this project, we implemented the simplest possible form of linguistic interaction: purely descriptive questions. For example: "What's in the third row?" "My piece, empty square, opponents piece." These questions
+
+\subsection{Training}
+We trained the network by playing it against an optimal opponent, used the standard Q-learning procedure for the Q-net, while training the network to answer a question (randomly chosen from the questions above) on each move.
+
+\subsection{Evaluation}
+We evaluated the network on whether or not it successfully achieved perfect performance (no losses) against the optimal opponent, and how many games it took to do so. We compared the performance of the network trained with descriptions to two controls:
+\begin{enumerate}
+\item \textbf{Basic:} The Q-network without the description task.
+\item \textbf{Control:} The Q-network with a different description task -- counting the number of pieces on the board. In this task there was only a single question (``How many are there?'') and responses were of the form (``There are five'') This active control is to test for a possible effect of just having any other task overcoming the small gradients reaching the first layer more quickly.
+\end{enumerate}
+
+\subsection{Minor implementation details}
+All sentences (input and output) were padded to length 10, input sentences were reversed.
+
+\section{Experiments}
+
+\section{Conclusions}
+
+\bibliographystyle{acm}
+\bibliography{224n_project}
+
+\end{document}
