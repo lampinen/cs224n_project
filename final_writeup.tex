@@ -2,6 +2,7 @@
 \usepackage{nips13submit_e,times}
 \usepackage{hyperref}
 \usepackage{url}
+\usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{mathrsfs}
 \usepackage{graphicx}
@@ -39,27 +40,42 @@ Stanford, CA 94305 \\
 
 
 \section{Introduction}
-Neural networks are often optimized for performance on a single task. By contrast, human intelligence is fundamentally flexible, and applicable across a wide variety of tasks. It has been argued that this represents a fundamental difference in the representational structure of human intelligence and neural networks \cite{Lake2016}. However, we have argued that this difference may arise from the richness of human experience, which can be seen as a vast set of interconnected and mutually supporting tasks \cite{HansenInPress}. We argue that human-like learning can arise from neural networks if they are given human-like experience. \par
-In this paper, we address one small piece of this argument. Lake and colleagues have argued that neural networks are too data hungry to be a good model for human behavior, or to perform sophisticated intelligence tasks alone \cite{Lake2016}. There are several reasons humans require less data than a neural network:
-\begin{itemize}
-\item Humans have prior knowledge which can be useful for learning, which it has been known for some time that neural networks can model \cite[e.g.]{Dienes1999}.
-\item Humans often receive multiple forms of feedback in a single task, for example, when learning to play chess you might receive both emotional feedback (``my opponent just took my queen, UGH''), and linguistic feedback (your teacher telling you ``that type of double attack is called a fork'').
-\end{itemize} 
-In this paper we focus on this latter point. Can giving neural networks multiple sources of feedback about a task accelerate learning?\par
-In particular, we focus on the simple game-playing context of tic-tac-toe. It is simple enough to train a neural network to play tic-tac-toe using a reinforcement learning algorithm, but suppose we give it in addition some natural language information about the task. Will this be beneficial to learning? 
-%%TODO
+Neural networks are often optimized for performance on a single task. By contrast, human intelligence is fundamentally flexible, and applicable across a wide variety of tasks. It has been argued that this represents a fundamental difference in the representational structure of human intelligence and neural networks \cite{Lake2016}. However, we have argued that this difference may arise from the richness of human experience, which can be seen as a vast set of interconnected and mutually supporting tasks \cite{HansenInPress}. We argue that human-like performance can arise from deep learning systems if they are given human-like experience. \par
+In particular, natural language instruction is fundamental to rapid human learning in almost every context. It provides us with both direct instruction on simple explicit tasks, and with the scaffolding to build more complex skills. Lake and colleagues have argued that neural networks are too data hungry to be a good model for human behavior, or to perform sophisticated intelligence tasks alone \cite{Lake2016}. Can this difference be partly explained simply by the fact that deep learning systems are not generally given natural language feedback on tasks? \par 
+We explore this question in the simple game-playing context of tic-tac-toe. It is simple enough to train a neural network to play tic-tac-toe using a reinforcement learning algorithm, but suppose we give it in addition some natural language information about the task. This information may convey useful information about the task structure which is more difficult to obtain from the opaque feedback of a reinforcement learning signal. Can natural language feedback thus improve reinforcement learning? 
 \section{Background/Related Work}
-Recent work has shown the power of combining neural networks and reinforcement learning, as with the Deep Q-Network \cite{Mnih2015}. Yet there are important differences between the way that humans and the DQN learn \cite{Lake2016}. We hypothesize that many of these may be explained by the richness of human experience -- when humans are learning to play a game, they bring experience from previous games they have played, and they often receive explicit instruction as well as more implicit learning. There have been a number of studies recently showing the benefit of multi-task training, \cite[e.g.]{Luong2016}.
-
+Recent work has shown the power of combining neural networks and reinforcement learning, as with the Deep Q-Network \cite{Mnih2015}. There have been a variety of extensions and variations on this intended for training on multiple tasks \cite[e.g.]{Rusu2015}, with the focus of improving the flexibility of deep learning systems. \par 
+There have also been a number of studies recently showing the benefit of multi-task training for optimizing performance on a single task, \cite[e.g.]{Luong2016}. For reinforcement learning specifically, a recent paper has suggested that adding various auxiliary rewards for tasks like correctly predicting what will happen can accelerate learning and improve final performance \cite{Jaderberg2016}. Kuhlman and colleagues \cite{Kuhlmann2004} explored giving natural language advice to a reinforcment learning system, but built in the advice as rules which the system could ``unlearn'' by reducing their weight to the output, but did not allow for more flexible interactions of language and learning. To the best of our knowledge, this project is the only exploration of how training a reinforcement learning system on a purely auxiliary natural language task (i.e. one that does not directly affect the action outputs of the system) may affect learning.
 \section{Approach}
-We explored a simple version of incorporating explicit instruction into reinforcement learning. We trained a network to play tic-tac-toe using Q-learning, in the style of Mnih et al. \cite{Mnih2015}, while simultaneously asking the network to produce descriptions through a parallel sequence + visual input to sequence learning task, where the description task and the Q-learning task share the two layers which process the visual input (see fig. \ref{network_diagram} for a sketch of the architecture).  
+We explored a simple version of incorporating explicit instruction into reinforcement learning. We trained a network to play tic-tac-toe using Q-learning, in the style of Mnih et al. \cite{Mnih2015}, while simultaneously asking the network to produce descriptions through a parallel (sequence + visual input) to sequence learning task, where the description task and the Q-learning task share the two layers which process the visual input (see fig. \ref{network_diagram} for a sketch of the architecture). \par 
 \begin{figure}
 \centering
 \includegraphics[width=0.5\textwidth]{ttt_tasks.png}
-\caption{Sketch of our network architecture}
+\caption{Sketch of our network architecture (note that this shows the action output as a single chosen action for simplicity, but in actuality the output is Q-values)}
 \label{network_diagram}
 \end{figure}
-
+\subsection{\(Q\)-learning}
+One common technique for reinforcement learning
+\subsection{Architecture details}
+Our network can be broken down into a few components: 
+\begin{itemize}
+\item \textbf{Visual parser:} a two layer neural network that takes as input the board state (\(3 \times 3\)), passes it through a 100 unit hidden layer, and then to its output layer (also 100 units). This output can be thought of as the networks ``internal representation'' of the board state. We denote this by the function \(V\). 
+\item \textbf{Q-approximator:} a two layer neural network that takes as input the ``internal representation'' from the visual parser, and outputs Q-values for the 9 possible plays on the board. We denote this by \(Q\). 
+\item \textbf{Question answerer:} this system takes a question and the output of the visual parser, and produces an answer. We denote this as a whole by \(A\). It consists of several sub-components:
+    \begin{itemize}
+	\item \textbf{Encoder:} a simple RNN that encodes the question input to the system (100 hidden units) using word embeddings (20 dimensional, initialized at random, same as those used for the decoder in the output). Its final state is part of the input to the integrator. We denote this by \(E\).
+	\item \textbf{Integrator:} A single layer neural network (100 units) that takes as input the final state of the encoder and the ``internal representation'' produced by the visual parser, and produces as output the initial state for the decoder. We denote this by \(I\).
+	\item \textbf{Decoder:} a simple RNN (100 hidden units) that outputs the answer to the current question as a sequence of word vectors (dimension 20). Its initial state is the output of the integrator, its first input is ``GO,'' and subsequently it receives its previous output as input. We denote this network by \(D\)
+    \end{itemize} 
+\end{itemize}
+Symbolically, the network works as follows:
+\[ 
+\text{Estimated } Q-\text{values} = Q(V(\text{board state}))
+\]
+\[ 
+\text{Answer} = A(\text{question},V(\text{board state})) = D(I(E(\text{question}),V(\text{board state})) )
+\]
+We trained the Q-estimator by using mean squared-error on the Bellman equation above (i.e. on the difference between the Q-estimates at one point, and the optimal Q-estimate at the next move). We trained the question answerer using cross-entropy error on a softmax over the logits produced by multiplying its outputs by the word embeddings.
 \subsection{Data generation}
 Because game playing involves interactions between two opponents, data generation is more complicated than on some other tasks. Fortunately, tic-tac-toe is simple, and both the plays and the descriptions could be generated on the fly. For the purposes of this project, we implemented the simplest possible form of linguistic interaction: purely descriptive questions. For example: "What's in the third row?" "My piece, empty square, opponents piece." These questions
 
@@ -74,7 +90,7 @@ We evaluated the network on whether or not it successfully achieved perfect perf
 \end{enumerate}
 
 \subsection{Minor implementation details}
-All sentences (input and output) were padded to length 10, input sentences were reversed.
+All sentences (input and output) were padded to length 10, input sentences were reversed. When choosing the system's actions from its output, we masked the Q-value output to include only legal plays before taking the max (i.e. where there was not already a piece on the board) -- this improved learning early on.
 
 \section{Experiments}
 
